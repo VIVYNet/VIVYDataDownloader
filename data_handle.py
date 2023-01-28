@@ -78,7 +78,7 @@ class DataHandle():
         self.PATH = os.path.abspath(path)   # Store the path as an absolute path
         
         
-    def insert(self, method: int, text: str, link: str) -> dict:
+    def insert(self, method: int, text: str, links: list[str]) -> dict:
         """Document Insertion Method Using Download Link
         
         Inserts a datapoint or document into the DB. This method also updates
@@ -101,19 +101,28 @@ class DataHandle():
             "version": "v1.0.0"
         }
 
-        The method will return True if the operation went successful and an item
-        was inserted to the DM. False if otherwise.
+        The method will return a dict with True if more than zero files were downloaded. 
+        False if otherwise. The structure of the dict is found below:
+
+        {
+            "status": True,
+            "Message": "Completed document insertion.\n1/2 documents downloaded."
+        }
 
         Information:
             :param method: The methodology used to gather the information of the datapoint
             :type method: int
             :param text: The text associated to the datapoint
             :type text: str
-            :param link: The link to download the digital content for the datapoint
-            :type link: str
+            :param links: The links to download the digital content for the datapoint
+            :type links: list[str]
             :return: Returns the status and a message of the insertion process
             :rtype: dict
         """
+
+        # Variable declaration and initialization
+        num_links = len(links)
+        num_downloads = 0
 
         id = str(uuid.uuid4()).replace("-", "")     # Create an unique ID 
 
@@ -128,22 +137,20 @@ class DataHandle():
             "version": VERSION
         }
 
-        # Try to download the Download the data
-        try:
-            file_name = link.split("/")[-1]
-            urllib.urlretrieve(link, f"{self.PATH}/data/{id}/{file_name}")
+        # Iterate through the links and try to download them
+        for i in links:
 
-        # Catch the exception and return an error message
-        except:
-            return {
-                "Status": False,
-                "Message": "Link does not work for downloading"
-            }
+            # Try to download the iterated link
+            try:
+                file_name = i.split("/")[-1]
+                urllib.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
+
+            # Catch the exception and increment the download count
+            except:
+                num_downloads += 1
         
         # Return a success message
         return {
-            "Status": True,
-            "Message": "Downloaded specified content"
+            "Status": True if num_downloads else False,
+            "Message": f"Completed document insertion.\n{num_downloads}/{num_links} downloaded."
         }
-
-        
