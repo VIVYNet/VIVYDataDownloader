@@ -1,0 +1,107 @@
+what my script is doing:
+- it can either go through the mongo cpdl "table" and check the links for each of them
+- also goes through the "workable table," finds connections to cpdl or imslp, 
+  and then finds dowload link
+
+how i can approach this:
+- first one is just doing that shit above^
+- we can update the database structure first, kinda like sorting to find the ones with midis/pdfs
+  and then go from there
+
+
+In summary of what was discussed, you have been tasked with creating a downloading script that downloads a digital representation of music paired with its musical text. 
+These digital representations can be either in MIDI format or PDF format.
+
+There are two ways that this script can achieve this task:
+
+1. Iterate through every document in the CPDL collection; 
+find documents that have download links to MIDI or PDF files and lyrical text; 
+and download those files and make an index that tracks the lyrical text and the file location of the downloaded content.
+
+2. Compare every document in the Workable collection to the IMSLP and CPDL repository for MIDI or PDF Files and download them if so. 
+Track them similarly to how you would do it in the first method.
+
+
+
+System Design:
+
+Classes:
+Mongo Handler-->
+    creates a mongodb instance 
+
+Data Handler-->
+    creates index.json file, and manipulates data into the folders with the lyrical content, and the midi/pdf file
+
+CPDL Parser-->
+    parses the CPDL data, finds which data has lyrics and a download link, then passes it to data Handler
+
+Workable Parser-->
+    parses Workable collection, compares songs in song array to CPDL and IMSLP collections for the download links and lyrical content
+
+
+
+hi kiran was here :) 
+
+
+-- what we can do for path is have a main method thats a cli approach
+-- the cli app asks for u to specify a path on ur computer
+-- from there then it runs the stuff
+-- remember to make the json pretty lol
+
+
+os.mkdir("C:/dbug/vivtst")
+>>> path = "C:/dbug/vivtst"
+>>> filepath = os.path.join(path, 'index.json')
+>>> f = open(filepath, "w")
+>>> import requests
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+ModuleNotFoundError: No module named 'requests'
+>>> import requests
+>>> response = requests.get("https://www.cpdl.org/wiki/images/c/c4/All_people_that_on_earth_do_dwell_unkn.pdf")
+>>> filepath = os.path.join(path, 'test.pdf')   
+>>> with open(filepath, 'wb') as f:
+... f.write(response.content)
+  File "<stdin>", line 2
+    f.write(response.content)
+    ^
+IndentationError: expected an indented block after 'with' statement on line 1
+>>> with open(filepath, 'wb') as f:
+...     f.write(response.content)
+... 
+70505
+
+
+
+
+
+
+
+import os
+import json
+import urllib
+import requests
+from bson.json_util import dumps
+import os
+import pymongo
+from mongo_handle import MongoHandle
+from data_handle import DataHandle
+from cpdl_parser import CPDL_Parser
+
+cpdlParse = CPDL_Parser()
+cpdlParse.CPDLquery()
+
+handler = DataHandle("C:/dbug/test")
+handler.handle()
+
+
+
+
+#QUERIES
+# {"translations.text" : {$all: ["Italian"]}}
+# {"translations.text" : {$exists: false}} or {"translations.text" : {$gt: []}}
+# { download_links : {"$gt": {}}}
+# {translations: {}}
+
+# { $and: [ {translations: {$gt : {} }}, { download_links : {"$gt": {}}}]}
+# cursor = cpdl.find({ "$and": [ {"translations": {"$gt" : {} }}, { "download_links" : {"$gt": {}}}]})
