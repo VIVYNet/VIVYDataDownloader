@@ -94,7 +94,7 @@ cpdlParse.CPDLquery()
 handler = DataHandle("C:/dbug/test")
 handler.handle()
 
-
+C:/dbug/vivtst
 
 
 #QUERIES

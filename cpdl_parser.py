@@ -25,3 +25,11 @@ class CPDL_Parser():
 
     def cleanData(self):
         os.remove('VIVY_RAW.json')
+
+    def handle(self, path):
+        self.CPDLquery()
+                
+        handler = DataHandle(path)
+        handler.handle(1)
+        
+        self.cleanData()
