@@ -72,10 +72,3 @@ class MongoHandle():
         """
         
         return self.client  # Return the mongo client instance
-    
-    
-
-        
-        
-    
-
