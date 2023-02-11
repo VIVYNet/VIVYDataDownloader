@@ -11,7 +11,7 @@ db_handler = MongoHandle()
 db = db_handler.get_client()
 
 # Get instance of the specified collection
-col = db["VIVY"]["test"]
+col = db["VIVY"][TARGET_COL]
 
 # Load file
 with open(TARGET_PATH) as file:
