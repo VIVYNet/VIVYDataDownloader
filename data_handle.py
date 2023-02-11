@@ -40,7 +40,7 @@ class DataHandle():
             contains the data that can and is meant to be manipulable with this class. 
             
             Structure of the folder should look like this:
-            
+      
                 <path_to_folder>
                 ├───index.json
                 └───data
@@ -73,22 +73,6 @@ class DataHandle():
         self.PATH = os.path.abspath(path)   # Store the path as an absolute path
 
         self.index = json.load(open(path + "index.json", "r+"))     # Get the contents of index.json
-        
-    def __write_index(self) -> None:
-        """Index.json Write Method
-
-        Description:
-            Writes the current self.index to the index.json file
-
-        Information:
-            :return: None
-            :rtype: None        
-        """
-
-        # Write to file
-        with open(f"{self.PATH}/index.json", "w", encoding="utf-8") as file:
-            json.dump(self.index, file, ensure_ascii=False, indent=4)
-
 
     def insert(self, method: int, text: str, links: list[str]) -> dict:
         """Document Insertion Method Using Download Link
