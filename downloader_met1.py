@@ -15,6 +15,7 @@ Description:    Script to download the data based on documents that have both li
 from mongo_handle import MongoHandle
 from data_handle import DataHandle
 from bs4 import BeautifulSoup
+import concurrent.futures
 import urllib.request
 import json
 
@@ -45,6 +46,60 @@ def link_parser(link: str) -> list:
     
     return [poem.text for poem in poems if len(poem.find_all("a")) == 0]    # Return poems
 
+def process(document: dict) -> None:
+    """Process Download Method
+    
+    Description:
+        For the given dictionary instance, process the information for the downloading of content. This
+        is utilized with multithreaded processes.
+    
+    Information:
+        :param document: Dictionary/document to process for downloading
+        :type document: dict
+        :return: None
+        :rtype: None
+    """
+    
+    # Print ID of the iterated document and get the correct text key
+    print(f"--- {document['_id']} ---")
+    key_text = "translations" if "translations" in document else "translation"
+    
+    # Iterate through the information listed in the translation
+    for text_body in document[key_text]:
+        
+        # Attempt to process document
+        try: 
+            # Get the title of document
+            title = document["general_information"]["title"][0] \
+                if "title" in document["general_information"] else document["title"].partition("(")[0]
+            
+            # Iterate through the linktext's poems if the iterated information is a linktext
+            if document[key_text][text_body][0] == title:
+                texts = link_parser(document[key_text][text_body][0].replace(" ", "_"))
+                for text in texts:
+                        message = DATA_HANDLE.insert(
+                            method=1, 
+                            title=title,
+                            composer=document["general_information"]["composer"][0],
+                            text=text,
+                            links=document["download_links"][list(document["download_links"].keys())[0]]
+                        )
+                        print(message["Message"])
+                
+            # Casually download the data and print an error message if something goes right
+            else:
+                message = DATA_HANDLE.insert(
+                    method=1, 
+                    title=title,
+                    composer=document["general_information"]["composer"][0],
+                    text=document[key_text][text_body][-1],
+                    links=document["download_links"][list(document["download_links"].keys())[0]]
+                )
+                print(message["Message"])
+        
+        # Catch and print errors
+        except Exception as e:
+            print(f"Error Occurred While Processing Document")
 
 # Main run thread
 if __name__ == "__main__":
@@ -58,43 +113,7 @@ if __name__ == "__main__":
             ]
         }
     )
-
-    # Iterate through the cursor and insert data and information into the DB
-    for document in cursor:
-        
-        # Print ID of the iterated document and get the correct text key
-        print(f"--- {document['_id']} ---")
-        key_text = "translations" if "translations" in document else "translation"
-        
-        # Iterate through the information listed in the translation
-        for text_body in document[key_text]:
-            
-            # Iterate through the linktext's poems if the iterated information is a linktext
-            if document[key_text][text_body][0] == document["general_information"]["title"][0]:
-                texts = link_parser(document[key_text][text_body][0].replace(" ", "_"))
-                for text in texts:
-                    try: 
-                        message = DATA_HANDLE.insert(
-                            method=1, 
-                            title=document["general_information"]["title"][0],
-                            composer=document["general_information"]["composer"][0],
-                            text=text,
-                            links=document["download_links"][list(document["download_links"].keys())[0]]
-                        )
-                        print(message["Message"])
-                    except Exception as e:
-                        print(f"Error Occurred While Processing Document")
-                
-            # Casually download the data and print an error message if something goes right
-            else:
-                try: 
-                    message = DATA_HANDLE.insert(
-                        method=1, 
-                        title=document["general_information"]["title"][0],
-                        composer=document["general_information"]["composer"][0],
-                        text=document[key_text][text_body][-1],
-                        links=document["download_links"][list(document["download_links"].keys())[0]]
-                    )
-                    print(message["Message"])
-                except Exception as e:
-                    print(f"Error Occurred While Processing Document")
+    
+    # MultiThreading process to quickly download content
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        _ = [executor.submit(process, i) for i in cursor]
