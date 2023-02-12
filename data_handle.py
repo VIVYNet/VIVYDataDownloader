@@ -13,12 +13,13 @@ Description:    Class to handle the downloading and storing of large files, whil
 
 # Imports
 import os
+import re
 import json
 import uuid
 import shutil
 import urllib.request
 
-VERSION = "v1.0.0"  # Versioning for the documents
+VERSION = "v1.1.0"  # Versioning for the documents
 
 class DataHandle():
     """Data Handling Class
@@ -90,7 +91,7 @@ class DataHandle():
         with open(f"{self.PATH}\\index.json", "w", encoding="utf-8") as file:
             json.dump(self.index, file, ensure_ascii=False, indent=4)
     
-    def insert(self, method: int, text: str, links: list) -> dict:
+    def insert(self, method: int, title: str, composer: str, text: str, links: list) -> dict:
         """Document Insertion Method Using Download Link
         
         Description:
@@ -99,15 +100,19 @@ class DataHandle():
             contain:
 
                 1. An unique ID for the document
-                2. The methodology used to insert the document
-                3. The associating text to the datapoint
-                4. A filepath pointer to the data in the DB
-                5. A version to track what structure is the document in the index.json
+                2. The name of the song
+                3. The composer of the song
+                4. The methodology used to insert the document
+                5. The associating text to the datapoint
+                6. A filepath pointer to the data in the DB
+                7. A version to track what structure is the document in the index.json
 
             An example of the structure for an item in the index.json is provided below
             
                 "c5741947f6ab466ca59fdd5853c8d779": {
-                    "id": "c5741947f6ab466ca59fdd5853c8d779"
+                    "id": "c5741947f6ab466ca59fdd5853c8d779",
+                    "title": "Free Bird 2",
+                    "composer": "Your Mother",
                     "method": 1,
                     "text": "Lorem Ipsum...",
                     "directory": "./data/c5741947f6ab466ca59fdd5853c8d779",
@@ -126,6 +131,10 @@ class DataHandle():
         Information:
             :param method: The methodology used to gather the information of the datapoint
             :type method: int
+            :param title: The name of the song to insert into the database
+            :type title: str
+            :param composer: The composer of the song
+            :type composer: str
             :param text: The text associated to the datapoint
             :type text: str
             :param links: The links to download the digital content for the datapoint
@@ -143,6 +152,8 @@ class DataHandle():
         # Update information in the index
         self.index[id] = {
             "id": id,
+            "title": re.sub('[^A-Za-z0-9 ]+', '', title).lower(),
+            "composer": composer.lower(),
             "method": method,
             "text": text,
             "directory": f"./data/{id}/",
@@ -180,20 +191,24 @@ class DataHandle():
             These options includes:
 
                 1. Changing the text of the data
-                2. Adding downloaded content for a document
-                3. Replacing downloaded content for a document (clear and replace)
-                4. Update the methodology (pertains to the method field)
-                5. Provide additional information
-                5. Update the version of the information for a document in index.json
+                2. Change title of song
+                3. Change composer of song
+                4. Adding downloaded content for a document
+                5. Replacing downloaded content for a document (clear and replace)
+                6. Update the methodology (pertains to the method field)
+                7. Provide additional information
+                8. Update the version of the information for a document in index.json
 
             The following are the parameters to declare to achieve the above options in order:
 
                 1. text: str
-                2. links: list[str], add: bool = True
-                3. links: list[str], add: bool = False
-                4. method: int
-                5. additional: dict
-                6. version: str
+                2. title: str
+                3. composer: str
+                4. links: list[str], add: bool = True
+                5. links: list[str], add: bool = False
+                6. method: int
+                7. additional: dict
+                8. version: str
 
             Note, options 2 and 3 cannot be acted as they are completely different from one another.
 
@@ -234,6 +249,10 @@ class DataHandle():
             :type **kwargs: object
                 ├───:param text: Text to replace in the document
                 ├───:type text: str
+                ├───:param title: Title of the song to change
+                ├───:type title: str
+                ├───:param composer: Composer of the song to change
+                ├───:type composer: str
                 ├───:param links: List of links to download
                 ├───:type links: list[str]
                 ├───:param add: Specification to whether add or replace files in the DB
