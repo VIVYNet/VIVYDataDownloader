@@ -158,9 +158,9 @@ class DataHandle():
                 urllib.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
                 num_downloads += 1
 
-            # Catch the exception and pass
+            # Catch the exception and print the error
             except:
-                pass
+                print(f"Can't Download: {i}")
         
         self.__write_index()    # Save changes to index
         
@@ -291,9 +291,9 @@ class DataHandle():
                         urllib.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
                         num_downloads += 1
 
-                    # Catch the exception and pass
+                    # Catch the exception and print the error
                     except:
-                        pass
+                        print(f"{id} - Can't Download: {i}")
                 
                 # Update the success message
                 num_links = len(kwargs["links"])
