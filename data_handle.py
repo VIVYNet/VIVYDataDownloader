@@ -68,13 +68,29 @@ class DataHandle():
 
             # Creation of index.json
             self.index_file = open(path + "index.json", "a+", encoding="utf-8")
+            self.index_file.write("{}")
             self.index_file.close()
 
         self.PATH = os.path.abspath(path)   # Store the path as an absolute path
 
         self.index = json.load(open(path + "index.json", "r+"))     # Get the contents of index.json
-
-    def insert(self, method: int, text: str, links: list[str]) -> dict:
+    
+    def __write_index(self) -> dict:
+        """Index Writing Method
+        
+        Description:
+            Write index to index.json file
+        
+        Information:
+            :return: None
+            :rtype: None           
+        """
+        
+        # Write index to index.json
+        with open('data.json', 'w', encoding='utf-8') as file:
+            json.dump(self.index, file, ensure_ascii=False, indent=4)
+    
+    def insert(self, method: int, text: str, links: list) -> dict:
         """Document Insertion Method Using Download Link
         
         Description:
