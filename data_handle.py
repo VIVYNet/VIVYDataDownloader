@@ -15,8 +15,8 @@ Description:    Class to handle the downloading and storing of large files, whil
 import os
 import json
 import uuid
-import urllib
 import shutil
+import urllib.request
 
 VERSION = "v1.0.0"  # Versioning for the documents
 
@@ -72,7 +72,7 @@ class DataHandle():
             self.index_file.close()
 
         self.PATH = os.path.abspath(path)   # Store the path as an absolute path
-        
+
         self.index = json.load(open(path + "index.json", "r+"))     # Get the contents of index.json
     
     def __write_index(self) -> dict:
@@ -87,7 +87,7 @@ class DataHandle():
         """
         
         # Write index to index.json
-        with open('data.json', 'w', encoding='utf-8') as file:
+        with open(f"{self.PATH}\\index.json", "w", encoding="utf-8") as file:
             json.dump(self.index, file, ensure_ascii=False, indent=4)
     
     def insert(self, method: int, text: str, links: list) -> dict:
@@ -155,12 +155,13 @@ class DataHandle():
             # Try to download the iterated link and increment download count
             try:
                 file_name = i.split("/")[-1]
-                urllib.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
+                urllib.request.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
                 num_downloads += 1
 
-            # Catch the exception and pass
-            except:
-                pass
+            # Catch the exception and print the error
+            except Exception as e:
+                print(f"Can't Download: {i}")
+                print(e)
         
         self.__write_index()    # Save changes to index
         
@@ -288,12 +289,13 @@ class DataHandle():
                     # Try to download the iterated link and increment download count
                     try:
                         file_name = i.split("/")[-1]
-                        urllib.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
+                        urllib.request.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
                         num_downloads += 1
 
-                    # Catch the exception and pass
-                    except:
-                        pass
+                    # Catch the exception and print the error
+                    except Exception as e:
+                        print(f"{id} - Can't Download: {i}")
+                        print(e)
                 
                 # Update the success message
                 num_links = len(kwargs["links"])

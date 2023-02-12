@@ -32,9 +32,16 @@ cursor = COL.find(
     }
 )
 
-# Iterate through the cursor and insert into the DB
+# Iterate through the cursor and insert data and information into the DB
+# If the iterated text has only one item, the iterated instance is not placed into the 
 for document in cursor:
     for text_body in document["translations"]:
-        print(json.dumps(document["general_information"]["title"], indent=4))
-        print(json.dumps(document["translations"][text_body], indent=4))
-        input("\n")
+        if len(document["translations"][text_body]) == 1:
+            print(f"Can't Use as Text: {document['translation'][text_body][-1]}")
+        else:
+            DATA_HANDLE.insert(
+                method=1, 
+                text=document["translations"][text_body][-1],
+                links=document["download_links"][list(document["download_links"].keys())[0]]
+            )
+            input()
