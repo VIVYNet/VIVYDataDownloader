@@ -172,7 +172,6 @@ class DataHandle():
             # Catch the exception and print the error
             except Exception as e:
                 print(f"Can't Download: {i}")
-                print(e)
         
         self.__write_index()    # Save changes to index
         
@@ -180,7 +179,7 @@ class DataHandle():
         return {
             "Status": True if num_downloads else False,
             "ID": id,
-            "Message": f"Completed document insertion.\n{num_downloads}/{len(links)} files downloaded."
+            "Message": f"Completed document insertion. {num_downloads}/{len(links)} files downloaded."
         }
 
     def update(self, id: str, **kwargs: object) -> dict:
@@ -314,7 +313,6 @@ class DataHandle():
                     # Catch the exception and print the error
                     except Exception as e:
                         print(f"{id} - Can't Download: {i}")
-                        print(e)
                 
                 # Update the success message
                 num_links = len(kwargs["links"])
