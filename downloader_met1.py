@@ -20,7 +20,7 @@ import urllib.request
 import json
 
 # Constants
-TARGET_LOC = "E:\\Data\\"
+TARGET_LOC = "D:\\Projects\\VIVY\\Data\\Raw"
 DATA_HANDLE = DataHandle(TARGET_LOC)
 MONGO_DB = MongoHandle()
 COL = MONGO_DB.get_client()["VIVY"]["cpdlCOL"]
@@ -76,13 +76,14 @@ def process(document: dict) -> None:
             # Iterate through the linktext's poems if the iterated information is a linktext
             if document[key_text][text_body][0] == title:
                 texts = link_parser(document[key_text][text_body][0].replace(" ", "_"))
-                for text in texts:
+                for count, text in enumerate(texts):
                         message = DATA_HANDLE.insert(
                             method=1, 
                             title=title,
                             composer=document["general_information"]["composer"][0],
                             text=text,
-                            links=document["download_links"][list(document["download_links"].keys())[0]]
+                            links=document["download_links"][list(document["download_links"].keys())[0]],
+                            custom_id=f"{document['_id']}_count"
                         )
                         print(message["Message"])
                 
@@ -93,7 +94,8 @@ def process(document: dict) -> None:
                     title=title,
                     composer=document["general_information"]["composer"][0],
                     text=document[key_text][text_body][-1],
-                    links=document["download_links"][list(document["download_links"].keys())[0]]
+                    links=document["download_links"][list(document["download_links"].keys())[0]],
+                    custom_id=f"{document['_id']}"
                 )
                 print(message["Message"])
         
@@ -117,3 +119,6 @@ if __name__ == "__main__":
     # MultiThreading process to quickly download content
     with concurrent.futures.ProcessPoolExecutor() as executor:
         _ = [executor.submit(process, i) for i in cursor]
+    
+    # Compile index.json file
+    DATA_HANDLE.compile_index()
