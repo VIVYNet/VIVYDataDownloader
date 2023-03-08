@@ -13,12 +13,15 @@ Description:    Class to handle the downloading and storing of large files, whil
 
 # Imports
 import os
+import re
 import json
 import uuid
-import urllib
 import shutil
+import urllib.request
+from bson.json_util import dumps
+from mongo_handle import MongoHandle
 
-VERSION = "v1.0.0"  # Versioning for the documents
+VERSION = "v1.1.0"  # Versioning for the documents
 
 class DataHandle():
     """Data Handling Class
@@ -68,29 +71,77 @@ class DataHandle():
 
             # Creation of index.json
             self.index_file = open(path + "index.json", "a+", encoding="utf-8")
-            self.index_file.write("{}")
+            self.index_file.write("[]")
             self.index_file.close()
 
         self.PATH = os.path.abspath(path)   # Store the path as an absolute path
 
         self.index = json.load(open(path + "index.json", "r+"))     # Get the contents of index.json
+        
+        # Establish MongoDB DB connection for temp holding
+        self.MONGO_DB = MongoHandle()
+        self.COL = self.MONGO_DB.get_client()["VIVYDownload"]["temp"]
+        self.ERROR = self.MONGO_DB.get_client()["VIVYDownload"]["error"]
+        
+        # Seed it with index.json information
+        if self.index != []:
+            self.COL.insert_many(self.index)
     
-    def __write_index(self) -> dict:
-        """Index Writing Method
+    def error_handle(self, data: dict, error: str, link: str) -> None:
+        """Data Handle Function
+        
+        Description:    
+            Handles the erred data when it could not be inserted into DB. 
+            Specifically, stores the data and the error message into a MongoDB collection.
+
+        Information:
+            :param data: Data that was erred
+            :type data: dict
+            :param error: Error message of the error
+            :type error: str    
+            :param link: Link that could've been the error
+            :type link: str
+            :return: None
+            :rtype: None
+        """
+        
+        # Insert error into error collection
+        self.ERROR.insert_one(
+            {
+                "_id": data["_id"], 
+                "data": data, 
+                "error": error,
+                "link": link
+            }
+        )
+    
+    def compile_index(self) -> None:
+        """Index Compile Method
         
         Description:
-            Write index to index.json file
+            Compile temp data from MongoDB temp collection to index.json file
         
         Information:
             :return: None
             :rtype: None           
         """
         
-        # Write index to index.json
-        with open('data.json', 'w', encoding='utf-8') as file:
-            json.dump(self.index, file, ensure_ascii=False, indent=4)
+        cursor = self.COL.find({})  # Generate cursor
+        
+        # Overwrite index.json file for writing
+        with open(f"{self.PATH}/index.json", 'w+', encoding="utf-8") as file:
+            json.dump(json.loads(dumps(cursor)), file, indent=4)
     
-    def insert(self, method: int, text: str, links: list) -> dict:
+    def insert(
+            self,
+            method: int,
+            title: str,
+            composer: str,
+            text: str,
+            links: list,
+            custom_id: str = None,
+            error_func: object = None
+        ) -> dict:
         """Document Insertion Method Using Download Link
         
         Description:
@@ -99,15 +150,19 @@ class DataHandle():
             contain:
 
                 1. An unique ID for the document
-                2. The methodology used to insert the document
-                3. The associating text to the datapoint
-                4. A filepath pointer to the data in the DB
-                5. A version to track what structure is the document in the index.json
+                2. The name of the song
+                3. The composer of the song
+                4. The methodology used to insert the document
+                5. The associating text to the datapoint
+                6. A filepath pointer to the data in the DB
+                7. A version to track what structure is the document in the index.json
 
             An example of the structure for an item in the index.json is provided below
             
                 "c5741947f6ab466ca59fdd5853c8d779": {
-                    "id": "c5741947f6ab466ca59fdd5853c8d779"
+                    "id": "c5741947f6ab466ca59fdd5853c8d779",
+                    "title": "Free Bird 2",
+                    "composer": "Your Mother",
                     "method": 1,
                     "text": "Lorem Ipsum...",
                     "directory": "./data/c5741947f6ab466ca59fdd5853c8d779",
@@ -126,23 +181,33 @@ class DataHandle():
         Information:
             :param method: The methodology used to gather the information of the datapoint
             :type method: int
+            :param title: The name of the song to insert into the database
+            :type title: str
+            :param composer: The composer of the song
+            :type composer: str
             :param text: The text associated to the datapoint
             :type text: str
             :param links: The links to download the digital content for the datapoint
             :type links: list[str]
+            :param custom_id: The ID the callee would like to use instead of a random one
+            :type custom_id: str
+            :param error_func: Function to call when an error occurs. Must intake error and err'd data
+            :type error_func: Object
             :return: Returns the status and a message of the insertion process
             :rtype: dict
         """
 
         num_downloads = 0   # Variable declaration and initialization
 
-        id = str(uuid.uuid4()).replace("-", "")     # Create an unique ID 
+        id = str(uuid.uuid4()).replace("-", "") if custom_id == None else custom_id    # Create an unique ID 
 
         os.makedirs(f"{self.PATH}/data/{id}/")      # Create the datapoint's subdirectory into the DB
-
-        # Update information in the index
-        self.index[id] = {
-            "id": id,
+        
+        # Set up the document to input
+        data = {
+            "_id": id,
+            "title": re.sub('[^A-Za-z0-9 ]+', '', title).lower(),
+            "composer": composer.lower(),
             "method": method,
             "text": text,
             "directory": f"./data/{id}/",
@@ -155,20 +220,31 @@ class DataHandle():
             # Try to download the iterated link and increment download count
             try:
                 file_name = i.split("/")[-1]
-                urllib.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
+                urllib.request.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
                 num_downloads += 1
 
-            # Catch the exception and print the error
-            except:
-                print(f"Can't Download: {i}")
+            # Catch the exception and print the error, delete folder, and return
+            except Exception as e:
+                print(f"Can't Download: {i}")               # Print error message
+                shutil.rmtree(f"{self.PATH}/data/{id}/")    # Remove folder
+                
+                # Call native error_handle function if none is provided
+                # If not, call the provided one
+                if error_func == None:
+                    self.error_handle(data, str(e), i)
+                else:
+                    error_func(data, str(e))
+                
+                return  # Return
         
-        self.__write_index()    # Save changes to index
+        # Insert new information to the temp MongoDB collection
+        self.COL.insert_one(data)
         
         # Return a success message
         return {
             "Status": True if num_downloads else False,
             "ID": id,
-            "Message": f"Completed document insertion.\n{num_downloads}/{len(links)} files downloaded."
+            "Message": f"Completed document insertion. {num_downloads}/{len(links)} files downloaded."
         }
 
     def update(self, id: str, **kwargs: object) -> dict:
@@ -179,20 +255,24 @@ class DataHandle():
             These options includes:
 
                 1. Changing the text of the data
-                2. Adding downloaded content for a document
-                3. Replacing downloaded content for a document (clear and replace)
-                4. Update the methodology (pertains to the method field)
-                5. Provide additional information
-                5. Update the version of the information for a document in index.json
+                2. Change title of song
+                3. Change composer of song
+                4. Adding downloaded content for a document
+                5. Replacing downloaded content for a document (clear and replace)
+                6. Update the methodology (pertains to the method field)
+                7. Provide additional information
+                8. Update the version of the information for a document in index.json
 
             The following are the parameters to declare to achieve the above options in order:
 
                 1. text: str
-                2. links: list[str], add: bool = True
-                3. links: list[str], add: bool = False
-                4. method: int
-                5. additional: dict
-                6. version: str
+                2. title: str
+                3. composer: str
+                4. links: list[str], add: bool = True
+                5. links: list[str], add: bool = False
+                6. method: int
+                7. additional: dict
+                8. version: str
 
             Note, options 2 and 3 cannot be acted as they are completely different from one another.
 
@@ -233,6 +313,10 @@ class DataHandle():
             :type **kwargs: object
                 ├───:param text: Text to replace in the document
                 ├───:type text: str
+                ├───:param title: Title of the song to change
+                ├───:type title: str
+                ├───:param composer: Composer of the song to change
+                ├───:type composer: str
                 ├───:param links: List of links to download
                 ├───:type links: list[str]
                 ├───:param add: Specification to whether add or replace files in the DB
@@ -288,11 +372,11 @@ class DataHandle():
                     # Try to download the iterated link and increment download count
                     try:
                         file_name = i.split("/")[-1]
-                        urllib.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
+                        urllib.request.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
                         num_downloads += 1
 
                     # Catch the exception and print the error
-                    except:
+                    except Exception as e:
                         print(f"{id} - Can't Download: {i}")
                 
                 # Update the success message
@@ -312,4 +396,4 @@ class DataHandle():
             "Status": True,
             "ID": id,
             "Message": success_message
-        }
+        } 
