@@ -20,7 +20,7 @@ import urllib.request
 import json
 
 # Constants
-TARGET_LOC = "D:\\Projects\\VIVY\\Data\\Raw"
+TARGET_LOC = "D:\\Projects\\VIVY\\Data\\Raw\\"
 DATA_HANDLE = DataHandle(TARGET_LOC)
 MONGO_DB = MongoHandle()
 COL = MONGO_DB.get_client()["VIVY"]["cpdlCOL"]
@@ -83,7 +83,7 @@ def process(document: dict) -> None:
                             composer=document["general_information"]["composer"][0],
                             text=text,
                             links=document["download_links"][list(document["download_links"].keys())[0]],
-                            custom_id=f"{document['_id']}_count"
+                            custom_id=f"{document['_id']}_{count}"
                         )
                         print(message["Message"])
                 
