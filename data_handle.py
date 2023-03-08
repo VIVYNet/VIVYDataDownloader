@@ -18,6 +18,8 @@ import json
 import uuid
 import shutil
 import urllib.request
+from bson.json_util import dumps
+from mongo_handle import MongoHandle
 
 VERSION = "v1.1.0"  # Versioning for the documents
 
@@ -69,29 +71,77 @@ class DataHandle():
 
             # Creation of index.json
             self.index_file = open(path + "index.json", "a+", encoding="utf-8")
-            self.index_file.write("{}")
+            self.index_file.write("[]")
             self.index_file.close()
 
         self.PATH = os.path.abspath(path)   # Store the path as an absolute path
 
         self.index = json.load(open(path + "index.json", "r+"))     # Get the contents of index.json
+        
+        # Establish MongoDB DB connection for temp holding
+        self.MONGO_DB = MongoHandle()
+        self.COL = self.MONGO_DB.get_client()["VIVYDownload"]["temp"]
+        self.ERROR = self.MONGO_DB.get_client()["VIVYDownload"]["error"]
+        
+        # Seed it with index.json information
+        if self.index != []:
+            self.COL.insert_many(self.index)
     
-    def __write_index(self) -> dict:
-        """Index Writing Method
+    def error_handle(self, data: dict, error: str, link: str) -> None:
+        """Data Handle Function
+        
+        Description:    
+            Handles the erred data when it could not be inserted into DB. 
+            Specifically, stores the data and the error message into a MongoDB collection.
+
+        Information:
+            :param data: Data that was erred
+            :type data: dict
+            :param error: Error message of the error
+            :type error: str    
+            :param link: Link that could've been the error
+            :type link: str
+            :return: None
+            :rtype: None
+        """
+        
+        # Insert error into error collection
+        self.ERROR.insert_one(
+            {
+                "_id": data["_id"], 
+                "data": data, 
+                "error": error,
+                "link": link
+            }
+        )
+    
+    def compile_index(self) -> None:
+        """Index Compile Method
         
         Description:
-            Write index to index.json file
+            Compile temp data from MongoDB temp collection to index.json file
         
         Information:
             :return: None
             :rtype: None           
         """
         
-        # Write index to index.json
-        with open(f"{self.PATH}\\index.json", "w", encoding="utf-8") as file:
-            json.dump(self.index, file, ensure_ascii=False, indent=4)
+        cursor = self.COL.find({})  # Generate cursor
+        
+        # Overwrite index.json file for writing
+        with open(f"{self.PATH}/index.json", 'w+', encoding="utf-8") as file:
+            json.dump(json.loads(dumps(cursor)), file, indent=4)
     
-    def insert(self, method: int, title: str, composer: str, text: str, links: list) -> dict:
+    def insert(
+            self,
+            method: int,
+            title: str,
+            composer: str,
+            text: str,
+            links: list,
+            custom_id: str = None,
+            error_func: object = None
+        ) -> dict:
         """Document Insertion Method Using Download Link
         
         Description:
@@ -139,19 +189,23 @@ class DataHandle():
             :type text: str
             :param links: The links to download the digital content for the datapoint
             :type links: list[str]
+            :param custom_id: The ID the callee would like to use instead of a random one
+            :type custom_id: str
+            :param error_func: Function to call when an error occurs. Must intake error and err'd data
+            :type error_func: Object
             :return: Returns the status and a message of the insertion process
             :rtype: dict
         """
 
         num_downloads = 0   # Variable declaration and initialization
 
-        id = str(uuid.uuid4()).replace("-", "")     # Create an unique ID 
+        id = str(uuid.uuid4()).replace("-", "") if custom_id == None else custom_id    # Create an unique ID 
 
         os.makedirs(f"{self.PATH}/data/{id}/")      # Create the datapoint's subdirectory into the DB
-
-        # Update information in the index
-        self.index[id] = {
-            "id": id,
+        
+        # Set up the document to input
+        data = {
+            "_id": id,
             "title": re.sub('[^A-Za-z0-9 ]+', '', title).lower(),
             "composer": composer.lower(),
             "method": method,
@@ -169,11 +223,22 @@ class DataHandle():
                 urllib.request.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
                 num_downloads += 1
 
-            # Catch the exception and print the error
+            # Catch the exception and print the error, delete folder, and return
             except Exception as e:
-                print(f"Can't Download: {i}")
+                print(f"Can't Download: {i}")               # Print error message
+                shutil.rmtree(f"{self.PATH}/data/{id}/")    # Remove folder
+                
+                # Call native error_handle function if none is provided
+                # If not, call the provided one
+                if error_func == None:
+                    self.error_handle(data, str(e), i)
+                else:
+                    error_func(data, str(e))
+                
+                return  # Return
         
-        self.__write_index()    # Save changes to index
+        # Insert new information to the temp MongoDB collection
+        self.COL.insert_one(data)
         
         # Return a success message
         return {
