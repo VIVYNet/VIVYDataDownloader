@@ -79,9 +79,10 @@ class DataHandle():
         self.index = json.load(open(path + "index.json", "r+"))     # Get the contents of index.json
         
         # Establish MongoDB DB connection for temp holding
+        suffix = path.split('\\')[-2]
         self.MONGO_DB = MongoHandle()
-        self.COL = self.MONGO_DB.get_client()["VIVYDownload"]["temp"]
-        self.ERROR = self.MONGO_DB.get_client()["VIVYDownload"]["error"]
+        self.COL = self.MONGO_DB.get_client()["VIVYDownload"][f"{suffix}_INDEX"]
+        self.ERROR = self.MONGO_DB.get_client()["VIVYDownload"][f"{suffix}_ERROR"]
         
         # Seed it with index.json information
         if self.index != []:
@@ -246,6 +247,33 @@ class DataHandle():
             "ID": id,
             "Message": f"Completed document insertion. {num_downloads}/{len(links)} files downloaded."
         }
+    
+    def copy(
+        self,
+        from_path: str,
+        index_doc: dict
+    ) -> dict:
+        """Data Copier Method
+        
+        Description:
+            Copy over files from a directory to the instance of this database. Also applies the copied
+            document's index information to this database's index. The parameter "from_path" must be a
+            direct path.
+            
+        Information:
+            :param from_path: The path of the directory to copy
+            :type from_path: str
+            :param index_doc: Index data associated to the directory copied 
+            :type index_doc: dict
+            :return: Return status message
+            :rtype: dict
+        """
+        
+        # Copy files over to the directory
+        shutil.copytree(from_path, f"{self.PATH}/data/{index_doc['_id']}/")
+        
+        # Add information to the index
+        self.COL.insert_one(index_doc)
 
     def update(self, id: str, **kwargs: object) -> dict:
         """Document Update Method
