@@ -106,6 +106,10 @@ class DataHandle():
             :rtype: None
         """
         
+        # Return nothing if the ID exist
+        if self.ERROR.find_one({"_id": data["_id"]}) != None:
+            return
+        
         # Insert error into error collection
         self.ERROR.insert_one(
             {
@@ -116,7 +120,7 @@ class DataHandle():
             }
         )
     
-    def compile_index(self) -> None:
+    def compile_index_and_errors(self) -> None:
         """Index Compile Method
         
         Description:
@@ -131,6 +135,12 @@ class DataHandle():
         
         # Overwrite index.json file for writing
         with open(f"{self.PATH}/index.json", 'w+', encoding="utf-8") as file:
+            json.dump(json.loads(dumps(cursor)), file, indent=4)
+        
+        cursor = self.ERROR.find({})  # Generate cursor
+        
+        # Overwrite index.json file for writing
+        with open(f"{self.PATH}/error.json", 'w+', encoding="utf-8") as file:
             json.dump(json.loads(dumps(cursor)), file, indent=4)
     
     def insert(
@@ -256,24 +266,45 @@ class DataHandle():
         """Data Copier Method
         
         Description:
-            Copy over files from a directory to the instance of this database. Also applies the copied
-            document's index information to this database's index. The parameter "from_path" must be a
-            direct path.
+            Copy over a file from a directory to the instance of this database. Also applies the copied 
+            file's associated index information to this database's index. The parameter "from_path" must 
+            be a direct path.
             
         Information:
-            :param from_path: The path of the directory to copy
+            :param from_path: The path of the file to copy
             :type from_path: str
-            :param index_doc: Index data associated to the directory copied 
+            :param index_doc: Index data associated to the file copied 
             :type index_doc: dict
             :return: Return status message
             :rtype: dict
         """
         
-        # Copy files over to the directory
-        shutil.copytree(from_path, f"{self.PATH}/data/{index_doc['_id']}/")
+        filename = from_path.split("\\")[-1]                    # Get filename
         
-        # Add information to the index
-        self.COL.insert_one(index_doc)
+        os.makedirs(f"{self.PATH}/data/{index_doc['_id']}/")    # Create the datapoint's subdirectory into the DB
+        
+        # Try to copy
+        try:
+        
+            # Copy files over to the directory
+            shutil.copy(
+                from_path, 
+                f"{self.PATH}/data/{index_doc['_id']}/{filename}"
+            )
+        
+        # Catch error and handle
+        except Exception as e:
+            shutil.rmtree(f"{self.PATH}/data/{index_doc['_id']}/")      # Remove folder
+            self.error_handle(index_doc, str(e), from_path)             # Handle error
+            return                                                      # Return            
+        
+        self.COL.insert_one(index_doc)      # Add information to the index
+        
+        # Return a success message
+        return {
+            "Status": True,
+            "Message": f"{index_doc['_id']} copied over."
+        }
 
     def update(self, id: str, **kwargs: object) -> dict:
         """Document Update Method
