@@ -74,7 +74,7 @@ def process(document: dict) -> None:
                 if "title" in document["general_information"] else document["title"].partition("(")[0]
             
             # Iterate through the linktext's poems if the iterated information is a linktext
-            if document[key_text][text_body][0] == title:
+            if document[key_text][text_body][0].lower() in title.lower():
                 texts = link_parser(document[key_text][text_body][0].replace(" ", "_"))
                 for count, text in enumerate(texts):
                         message = DATA_HANDLE.insert(
