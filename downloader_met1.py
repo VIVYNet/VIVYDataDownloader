@@ -18,9 +18,10 @@ from bs4 import BeautifulSoup
 import concurrent.futures
 import urllib.request
 import json
+import traceback
 
 # Constants
-TARGET_LOC = "D:\\Projects\\VIVY\\Data\\Raw\\"
+TARGET_LOC = "Data/Raw"
 DATA_HANDLE = DataHandle(TARGET_LOC)
 MONGO_DB = MongoHandle()
 COL = MONGO_DB.get_client()["VIVY"]["cpdlCOL"]
@@ -59,49 +60,51 @@ def process(document: dict) -> None:
         :return: None
         :rtype: None
     """
+
+    def insert_data():
+        ''' Insert current song data to the database
+        '''
+        # Discard short texts. Some texts are just the name of a language.
+        if len(text) < 20: return
+        nonlocal count
+        message = DATA_HANDLE.insert(
+                method=1, 
+                title=title,
+                composer=document["general_information"]["composer"][0],
+                text=text,
+                url=document['link'],
+                links=document["download_links"][list(document["download_links"].keys())[0]],
+                custom_id=f"{document['_id']}_{count}"
+            )
+        count += 1
+        print(message["Message"])
     
     # Print ID of the iterated document and get the correct text key
     print(f"--- {document['_id']} ---")
     key_text = "translations" if "translations" in document else "translation"
     
+    # Get the title of document
+    title = document["general_information"]["title"][0] \
+    if "title" in document["general_information"] else document["title"].partition("(")[0]
+    count = 0
     # Iterate through the information listed in the translation
     for text_body in document[key_text]:
-        
+
         # Attempt to process document
         try: 
-            # Get the title of document
-            title = document["general_information"]["title"][0] \
-                if "title" in document["general_information"] else document["title"].partition("(")[0]
-            
             # Iterate through the linktext's poems if the iterated information is a linktext
-            if document[key_text][text_body][0].lower() in title.lower():
-                texts = link_parser(document[key_text][text_body][0].replace(" ", "_"))
-                for count, text in enumerate(texts):
-                        message = DATA_HANDLE.insert(
-                            method=1, 
-                            title=title,
-                            composer=document["general_information"]["composer"][0],
-                            text=text,
-                            links=document["download_links"][list(document["download_links"].keys())[0]],
-                            custom_id=f"{document['_id']}_{count}"
-                        )
-                        print(message["Message"])
-                
+            if isinstance(document[key_text][text_body], list):
+                texts = document[key_text][text_body]
+                for text in texts:
+                    insert_data()
             # Casually download the data and print an error message if something goes right
             else:
-                message = DATA_HANDLE.insert(
-                    method=1, 
-                    title=title,
-                    composer=document["general_information"]["composer"][0],
-                    text=document[key_text][text_body][-1],
-                    links=document["download_links"][list(document["download_links"].keys())[0]],
-                    custom_id=f"{document['_id']}"
-                )
-                print(message["Message"])
+                insert_data()
         
         # Catch and print errors
         except Exception as e:
             print(f"Error Occurred While Processing Document")
+
 
 # Main run thread
 if __name__ == "__main__":
@@ -115,10 +118,11 @@ if __name__ == "__main__":
             ]
         }
     )
-    
+
     # MultiThreading process to quickly download content
     with concurrent.futures.ProcessPoolExecutor() as executor:
         _ = [executor.submit(process, i) for i in cursor]
+    # for i in cursor: process(i)
     
     # Compile index.json file
-    DATA_HANDLE.compile_index()
+    DATA_HANDLE.compile_index_and_errors()

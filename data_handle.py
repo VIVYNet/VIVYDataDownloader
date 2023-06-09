@@ -20,6 +20,7 @@ import shutil
 import urllib.request
 from bson.json_util import dumps
 from mongo_handle import MongoHandle
+import traceback
 
 VERSION = "v1.1.0"  # Versioning for the documents
 
@@ -79,7 +80,7 @@ class DataHandle():
         self.index = json.load(open(path + "index.json", "r+"))     # Get the contents of index.json
         
         # Establish MongoDB DB connection for temp holding
-        suffix = path.split('\\')[-2]
+        suffix = self.PATH.split(os.sep)[-2]
         self.MONGO_DB = MongoHandle()
         self.COL = self.MONGO_DB.get_client()["VIVYDownload"][f"{suffix}_INDEX"]
         self.ERROR = self.MONGO_DB.get_client()["VIVYDownload"][f"{suffix}_ERROR"]
@@ -149,6 +150,7 @@ class DataHandle():
             title: str,
             composer: str,
             text: str,
+            url: str,
             links: list,
             custom_id: str = None,
             error_func: object = None
@@ -198,6 +200,8 @@ class DataHandle():
             :type composer: str
             :param text: The text associated to the datapoint
             :type text: str
+            :param url: The url of the song page
+            :type url: str
             :param links: The links to download the digital content for the datapoint
             :type links: list[str]
             :param custom_id: The ID the callee would like to use instead of a random one
@@ -212,8 +216,9 @@ class DataHandle():
 
         id = str(uuid.uuid4()).replace("-", "") if custom_id == None else custom_id    # Create an unique ID 
 
+        text = re.sub(r"'{2,}", '', text)
         os.makedirs(f"{self.PATH}/data/{id}/")      # Create the datapoint's subdirectory into the DB
-        
+
         # Set up the document to input
         data = {
             "_id": id,
@@ -221,6 +226,7 @@ class DataHandle():
             "composer": composer.lower(),
             "method": method,
             "text": text,
+            "link": url, 
             "directory": f"./data/{id}/",
             "version": VERSION
         }
@@ -245,12 +251,12 @@ class DataHandle():
                     self.error_handle(data, str(e), i)
                 else:
                     error_func(data, str(e))
-                
+                    
                 return  # Return
         
         # Insert new information to the temp MongoDB collection
         self.COL.insert_one(data)
-        
+
         # Return a success message
         return {
             "Status": True if num_downloads else False,
