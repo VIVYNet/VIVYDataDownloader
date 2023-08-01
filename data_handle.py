@@ -82,8 +82,8 @@ class DataHandle():
         # Establish MongoDB DB connection for temp holding
         suffix = self.PATH.split(os.sep)[-2]
         self.MONGO_DB = MongoHandle()
-        self.COL = self.MONGO_DB.get_client()["VIVYDownload"][f"{suffix}_INDEX"]
-        self.ERROR = self.MONGO_DB.get_client()["VIVYDownload"][f"{suffix}_ERROR"]
+        self.COL = self.MONGO_DB.get_client()["VIVYDownload_en"][f"{suffix}_INDEX"]
+        self.ERROR = self.MONGO_DB.get_client()["VIVYDownload_en"][f"{suffix}_ERROR"]
         
         # Seed it with index.json information
         if self.index != []:
@@ -135,13 +135,13 @@ class DataHandle():
         cursor = self.COL.find({})  # Generate cursor
         
         # Overwrite index.json file for writing
-        with open(f"{self.PATH}/index.json", 'w+', encoding="utf-8") as file:
+        with open(f"{self.PATH}/index_en.json", 'w+', encoding="utf-8") as file:
             json.dump(json.loads(dumps(cursor)), file, indent=4)
         
         cursor = self.ERROR.find({})  # Generate cursor
         
         # Overwrite index.json file for writing
-        with open(f"{self.PATH}/error.json", 'w+', encoding="utf-8") as file:
+        with open(f"{self.PATH}/error_en.json", 'w+', encoding="utf-8") as file:
             json.dump(json.loads(dumps(cursor)), file, indent=4)
     
     def insert(
@@ -153,6 +153,7 @@ class DataHandle():
             url: str,
             links: list,
             custom_id: str = None,
+            count: int = 0,
             error_func: object = None
         ) -> dict:
         """Document Insertion Method Using Download Link
@@ -217,11 +218,11 @@ class DataHandle():
         id = str(uuid.uuid4()).replace("-", "") if custom_id == None else custom_id    # Create an unique ID 
 
         text = re.sub(r"'{2,}", '', text)
-        os.makedirs(f"{self.PATH}/data/{id}/")      # Create the datapoint's subdirectory into the DB
+        
 
         # Set up the document to input
         data = {
-            "_id": id,
+            "_id": f'{id}_{count}',
             "title": re.sub('[^A-Za-z0-9 ]+', '', title).lower(),
             "composer": composer.lower(),
             "method": method,
@@ -230,32 +231,43 @@ class DataHandle():
             "directory": f"./data/{id}/",
             "version": VERSION
         }
-
-        # Iterate through the links and try to download them
-        for i in links:
-
-            # Try to download the iterated link and increment download count
-            try:
-                file_name = i.split("/")[-1]
-                urllib.request.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
-                num_downloads += 1
-
-            # Catch the exception and print the error, delete folder, and return
-            except Exception as e:
-                print(f"Can't Download: {i}")               # Print error message
-                shutil.rmtree(f"{self.PATH}/data/{id}/")    # Remove folder
                 
-                # Call native error_handle function if none is provided
-                # If not, call the provided one
-                if error_func == None:
-                    self.error_handle(data, str(e), i)
-                else:
-                    error_func(data, str(e))
-                    
-                return  # Return
-        
         # Insert new information to the temp MongoDB collection
         self.COL.insert_one(data)
+
+        links = [ln for ln in links if '.mid' in ln.split('/')[-1].lower()]
+
+        if len(links) > 0:
+            if not os.path.isdir(f"{self.PATH}/data/{id}/"):
+                os.makedirs(f"{self.PATH}/data/{id}/")      # Create the datapoint's subdirectory into the DB
+                # Iterate through the links and try to download them
+                for i in links:
+                
+                    # Try to download the iterated link and increment download count
+                    try:
+                        file_name = i.split("/")[-1]
+                        if '.mid' in file_name.lower():
+                            urllib.request.urlretrieve(i, f"{self.PATH}/data/{id}/{file_name}")
+                        num_downloads += 1
+    
+                    # Catch the exception and print the error, delete folder, and return
+                    except Exception as e:
+                        print(f"Can't Download: {i}")               # Print error message
+                        shutil.rmtree(f"{self.PATH}/data/{id}/")    # Remove folder
+                        
+                        # Call native error_handle function if none is provided
+                        # If not, call the provided one
+                        if error_func == None:
+                            self.error_handle(data, str(e), i)
+                        else:
+                            error_func(data, str(e))
+                            
+                        return  # Return
+            return {
+                "Status": True,
+                "ID": id,
+                "Message": "Files already exist."
+            }
 
         # Return a success message
         return {
