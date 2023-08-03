@@ -15,10 +15,12 @@ Description:    Script to download the data based on documents that have both
 from mongo_handle import MongoHandle
 from data_handle import DataHandle
 from bs4 import BeautifulSoup
+from typing import List
 import concurrent.futures
 import urllib.request
 
 # Constants
+CHECKPOINT_FREQUENCY = 100
 TARGET_LOC = "Data/Raw"
 DATA_HANDLE = DataHandle(TARGET_LOC)
 MONGO_DB = MongoHandle()
@@ -51,7 +53,7 @@ def link_parser(link: str) -> list:
     return [poem.text for poem in poems if len(poem.find_all("a")) == 0]
 
 
-def process(document: dict) -> None:
+def process(intake: List[int, dict]) -> None:
     """Process Download Method
 
     Description:
@@ -59,11 +61,18 @@ def process(document: dict) -> None:
         downloading of content. This is utilized with multithreaded processes.
 
     Information:
-        :param document: Dictionary/document to process for downloading
-        :type document: dict
+        :param intake: Dictionary/document to process for downloading
+        :type intake: List[int, dict]
         :return: None
         :rtype: None
     """
+
+    # Bifurcate the intake information
+    index, document = intake
+
+    # Save temporary and error information on the specified save frequency
+    if index % CHECKPOINT_FREQUENCY == 0:
+        DATA_HANDLE.compile_index_and_errors()
 
     def insert_data():
         """Insert current song data to the database"""
@@ -126,7 +135,10 @@ if __name__ == "__main__":
 
     # MultiThreading process to quickly download content
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        _ = [executor.submit(process, i) for i in cursor]
+        _ = [
+            executor.submit(process, (index, i))
+            for index, i in enumerate(cursor)
+        ]
     # for i in cursor: process(i)
 
     # Compile index.json file
