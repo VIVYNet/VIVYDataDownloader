@@ -251,9 +251,7 @@ class DataHandle:
 
         # Insert new information to the temp MongoDB collection
         self.COL.insert_one(data)
-
         links = [ln for ln in links if ".mid" in ln.split("/")[-1].lower()]
-
         if len(links) > 0:
             if not os.path.isdir(f"{self.PATH}/data/{id}/"):
                 # Create the datapoint's subdirectory into the DB
