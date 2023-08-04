@@ -113,8 +113,13 @@ def process(intake: List[int, dict]) -> None:
             # is a linktext
             assert isinstance(document[key_text][text_body], list)
             texts = document[key_text][text_body]
+            insert = False
             for text in texts:
-                insert_data()
+                if insert:
+                    insert_data()
+                    insert = False
+                if text.strip().lower() == 'english':
+                    insert = True
 
         # Catch and print errors
         except Exception:
